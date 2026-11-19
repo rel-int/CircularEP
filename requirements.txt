@@ -1,0 +1,14 @@
+# Python 3.11+ (tested with 3.12).
+# On an NVIDIA GPU, install the CUDA build of the same JAX version first (see README.md):
+#   pip install -U "jax[cuda12]==0.4.38"
+jax==0.4.38
+jaxlib==0.4.38
+optax>=0.2.5
+numpy>=2.3
+scipy>=1.16
+# CIFAR-100 and ImageNet32 parquet files
+pyarrow>=24.0
+pillow>=11.3
+# needed only for the CIFAR-10 download (torchvision.datasets.CIFAR10)
+torch>=2.7
+torchvision>=0.22

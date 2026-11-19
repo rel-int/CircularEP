@@ -1,0 +1,31 @@
+# data, training runs and derived results
+data/
+runs/
+results/
+logs/
+checkpoints/
+*.pkl
+*.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+
+# editors, OS and logs
+.vscode/
+.idea/
+.DS_Store
+*.log

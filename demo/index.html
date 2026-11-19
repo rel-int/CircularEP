@@ -1,0 +1,455 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Circular Predictive Coding — 4×4 Sudoku demo</title>
+<meta name="description" content="Interactive 3D demo of circular predictive coding: a two-layer tanh network folded into a loop solves 4×4 Sudoku by gradient descent on its energy, with live equilibrium-propagation nudging and weight updates in the browser.">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --ground: #05070D;
+  --ground-2: #070B14;
+  --panel: #161B22;
+  --glass: rgba(13, 18, 27, 0.82);
+  --glass-2: rgba(22, 27, 34, 0.92);
+  --line: rgba(139, 152, 165, 0.18);
+  --line-2: rgba(139, 152, 165, 0.34);
+  --ink: #E6EDF3;
+  --muted: #8B98A5;
+  --teal: #4DD0C1;
+  --rose: #F26D85;
+  --amber: #F2B441;
+  --violet: #A78BFA;
+  --green: #3FB950;
+  --steel: #6F8FCF;
+  --f-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --f-body: "Instrument Sans", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --gutter: 16px;
+  --radius: 14px;
+  --panel-w: 372px;
+  color-scheme: dark;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+html { box-sizing: border-box; height: 100%; margin: 0; background: #05070D; color: var(--ink); }
+*, *::before, *::after { box-sizing: inherit; }
+body { height: 100%; margin: 0; background: #05070D; color: var(--ink); overflow: hidden; overscroll-behavior: none;
+  font: 14px/1.45 var(--f-body); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+#app { position: fixed; inset: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 40%, #0B1322 0%, #05070D 70%); }
+#stage { position: absolute; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; cursor: grab; }
+#stage canvas.pointing { cursor: pointer; }
+#stage canvas:active { cursor: grabbing; }
+
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: 0.005em; margin: 0; }
+p { margin: 0 0 8px; }
+a { color: var(--teal); }
+.mono { font-family: var(--f-mono); }
+.muted { color: var(--muted); }
+.teal { color: var(--teal); } .rose { color: var(--rose); } .amber { color: var(--amber); }
+.violet { color: var(--violet); } .green { color: var(--green); } .steel { color: var(--steel); }
+[hidden] { display: none !important; }
+
+.glass { background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(12px) saturate(1.15); backdrop-filter: blur(12px) saturate(1.15); }
+
+button, select, input { font: inherit; color: inherit; }
+button { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 12px;
+  cursor: pointer; line-height: 1.2; transition: background 0.15s, border-color 0.15s, color 0.15s; white-space: nowrap; }
+button:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(230, 237, 243, 0.42); }
+button:disabled { opacity: 0.45; cursor: default; }
+button[aria-pressed="true"] { background: rgba(167, 139, 250, 0.16); border-color: var(--violet); color: #fff; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+select { background: #0E141E; border: 1px solid var(--line-2); border-radius: 10px; padding: 6px 8px; width: 100%; }
+input[type="range"] { accent-color: var(--teal); width: 100%; min-width: 60px; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); width: 16px; height: 16px; margin: 0; flex: none; }
+output { font-family: var(--f-mono); font-size: 12px; color: var(--muted); min-width: 4.6em; text-align: right; }
+
+/* ---------------------------------------------------------------- brand + views */
+#brand { position: fixed; top: calc(var(--gutter) + env(safe-area-inset-top)); left: calc(var(--gutter) + env(safe-area-inset-left));
+  max-width: min(440px, calc(100% - var(--panel-w) - 3 * var(--gutter))); pointer-events: none; }
+#title { font-size: 30px; line-height: 1.05; font-variation-settings: "opsz" 96; }
+#title .dot { color: var(--violet); }
+#subtitle { margin-top: 6px; color: var(--muted); font-size: 13.5px; max-width: 420px; }
+#views { position: fixed; top: calc(var(--gutter) + env(safe-area-inset-top) + 96px); left: calc(var(--gutter) + env(safe-area-inset-left));
+  display: flex; flex-wrap: wrap; gap: 6px; max-width: min(520px, calc(100% - var(--panel-w) - 3 * var(--gutter))); }
+#views button { background: var(--glass); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: 13px; }
+#btn-unfold { border-color: rgba(242, 180, 65, 0.55); }
+#btn-unfold[aria-pressed="true"] { background: rgba(242, 180, 65, 0.16); border-color: var(--amber); }
+
+/* ---------------------------------------------------------------- caption */
+#caption { position: fixed; left: calc(var(--gutter) + env(safe-area-inset-left)); bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
+  max-width: min(600px, calc(100% - var(--panel-w) - 3 * var(--gutter))); padding: 12px 14px; display: flex; gap: 10px; align-items: baseline;
+  background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#caption-text { font-size: 14px; }
+.tag { flex: none; font: 600 11px/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px;
+  border: 1px solid currentColor; color: var(--green); }
+.tag.nudge { color: var(--violet); } .tag.ep { color: var(--amber); } .tag.gd { color: var(--rose); }
+
+/* ---------------------------------------------------------------- panel / bottom sheet */
+#panel { position: fixed; top: calc(var(--gutter) + env(safe-area-inset-top)); right: calc(var(--gutter) + env(safe-area-inset-right));
+  bottom: calc(var(--gutter) + env(safe-area-inset-bottom)); width: var(--panel-w); display: flex; flex-direction: column; overflow: hidden; }
+#panel-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); flex: none; }
+#sheet-toggle { display: none; }
+#transport { display: flex; align-items: center; gap: 6px; }
+#transport .tbtn { width: 36px; height: 36px; padding: 0; display: inline-grid; place-items: center; flex: none; }
+#transport .tbtn svg { width: 16px; height: 16px; fill: currentColor; }
+#btn-play { background: rgba(77, 208, 193, 0.12); border-color: rgba(77, 208, 193, 0.6); color: var(--teal); }
+#btn-play .i-play { display: none; } #btn-play[data-state="paused"] .i-play { display: block; } #btn-play[data-state="paused"] .i-pause { display: none; }
+#speed-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; margin-left: 4px; }
+#speed-wrap label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+#readouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.ro { display: flex; flex-direction: column; min-width: 0; }
+.ro .k { font: 500 10px/1.2 var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.ro .v { font: 500 13px/1.4 var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#board-legend { display: flex; align-items: center; gap: 11px; margin-top: 5px; flex-wrap: wrap; }
+#board-legend .chip { display: inline-flex; align-items: center; gap: 5px; font: 500 10px/1.2 var(--f-mono); color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+#board-legend .chip::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+#fold-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 500 11px/1 var(--f-mono); color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em; }
+#fold { accent-color: var(--amber); flex: 1; }
+#phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px; }
+#phases button { padding: 6px 4px; font-size: 12.5px; border-radius: 10px; }
+#phases button[aria-checked="true"] { color: #fff; }
+#phase-free[aria-checked="true"] { background: rgba(63, 185, 80, 0.16); border-color: var(--green); }
+#phase-plus[aria-checked="true"] { background: rgba(167, 139, 250, 0.18); border-color: var(--violet); }
+#phase-ep[aria-checked="true"] { background: rgba(242, 180, 65, 0.16); border-color: var(--amber); }
+#panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 14px 28px; scrollbar-width: thin; scrollbar-color: rgba(139,152,165,0.35) transparent; }
+#tabs { position: sticky; top: 0; z-index: 1; display: flex; gap: 2px; padding: 10px 0 8px; background: linear-gradient(var(--glass-2) 70%, transparent); overflow-x: auto; scrollbar-width: none; }
+#tabs::-webkit-scrollbar { display: none; }
+#tabs button { border: 0; border-radius: 8px; padding: 6px 9px; font-size: 13px; color: var(--muted); background: transparent; }
+#tabs button[aria-selected="true"] { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
+section[role="tabpanel"] { padding-top: 4px; }
+.h { font: 600 11px/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin: 14px 0 8px; }
+.note { color: var(--muted); font-size: 13px; }
+.row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.row.btns button { flex: 1; }
+.param { display: grid; grid-template-columns: 7.5em 1fr auto; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+.param label { color: var(--muted); }
+.toggle { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+.toggle .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+fieldset { border: 0; margin: 0; padding: 0; }
+legend { padding: 0; }
+.radio { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.radio span { display: block; }
+.radio small { color: var(--muted); display: block; font-size: 12px; }
+#chart { width: 100%; height: 190px; display: block; border-radius: 10px; background: rgba(5, 7, 13, 0.55); border: 1px solid var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font: 12px/1.3 var(--f-mono); color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+#parts { margin-top: 12px; display: grid; gap: 6px; }
+.part { display: grid; grid-template-columns: 5.5em 1fr 6.5em; gap: 8px; align-items: center; font: 12px/1.2 var(--f-mono); }
+.part .bar { height: 6px; border-radius: 3px; background: rgba(139, 152, 165, 0.15); overflow: hidden; }
+.part .bar span { display: block; height: 100%; width: 0; background: var(--rose); border-radius: 3px; transition: width 0.2s; }
+.part .val { text-align: right; color: var(--muted); }
+#showcase .sc-group { margin: 10px 0 4px; }
+#showcase .sc-label { font: 600 10.5px/1.2 var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+#showcase .sc-row { display: flex; flex-wrap: wrap; gap: 6px; }
+#showcase .sc-chip { position: relative; display: flex; align-items: center; gap: 6px; padding: 6px 10px 6px 8px; font-size: 12px; border-radius: 10px; }
+#showcase .sc-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+#showcase .sc-chip.on { background: rgba(167, 139, 250, 0.16); border-color: var(--violet); color: #fff; }
+#phase-learn.highlight { border-color: var(--amber); background: rgba(242, 180, 65, 0.16); color: #fff; animation: learnPulse 1.6s ease-in-out infinite; }
+@keyframes learnPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 180, 65, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(242, 180, 65, 0); } }
+#learn-updates { font-size: 15px !important; font-weight: 600; }
+#clue-grid { display: grid; grid-template-columns: repeat(4, 46px); grid-auto-rows: 46px; gap: 5px; margin: 10px 0; justify-content: start; }
+#clue-grid button { border-radius: 10px; padding: 0; font: 600 20px/1 var(--f-display); color: var(--muted); }
+#clue-grid button.clue { color: var(--violet); border-color: rgba(167, 139, 250, 0.7); background: rgba(167, 139, 250, 0.10); }
+#clue-grid button:nth-child(4n + 2) { margin-right: 6px; }
+#clue-grid button:nth-child(n + 5):nth-child(-n + 8) { margin-bottom: 6px; }
+#ep-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+#ep-maps figure { margin: 0; }
+#ep-maps canvas { width: 100%; aspect-ratio: 1 / 1; image-rendering: pixelated; border-radius: 8px; border: 1px solid rgba(242, 180, 65, 0.35); background: #0A0E15; display: block; }
+#ep-maps figcaption { font: 11.5px/1.35 var(--f-mono); color: var(--muted); margin-top: 6px; }
+.badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line-2); font: 500 12px/1 var(--f-mono); }
+.badge.ok { color: var(--green); border-color: rgba(63, 185, 80, 0.6); background: rgba(63, 185, 80, 0.08); }
+.badge.bad { color: var(--rose); border-color: rgba(242, 109, 133, 0.6); background: rgba(242, 109, 133, 0.08); }
+.badge.wait { color: var(--muted); }
+#selftest-rows { width: 100%; border-collapse: collapse; margin-top: 8px; font: 11.5px/1.35 var(--f-mono); color: var(--muted); }
+#selftest-rows td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; word-break: break-word; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font: 12px/1.4 var(--f-mono); }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12.5px; }
+.swatches span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; background: var(--c); }
+kbd { font: 11px/1 var(--f-mono); padding: 2px 5px; border-radius: 4px; border: 1px solid var(--line-2); background: rgba(255,255,255,0.05); }
+
+/* ---------------------------------------------------------------- floating cards */
+#tooltip { position: fixed; z-index: 30; pointer-events: none; max-width: 300px; padding: 9px 11px; font-size: 12.5px;
+  background: var(--glass-2); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 8px 26px rgba(0,0,0,0.5); }
+#tooltip b { font-family: var(--f-display); font-size: 15px; }
+#tooltip .f { font-family: var(--f-mono); color: var(--teal); font-size: 12px; display: block; margin-top: 3px; }
+#station-card { position: fixed; z-index: 20; left: calc(var(--gutter) + env(safe-area-inset-left)); top: calc(var(--gutter) + env(safe-area-inset-top) + 150px);
+  width: min(340px, calc(100% - 2 * var(--gutter))); padding: 14px 16px; }
+#station-card h3 { font-size: 22px; padding-right: 36px; }
+#station-card .f { font-family: var(--f-mono); color: var(--teal); font-size: 13px; margin: 6px 0; }
+#station-card-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0; }
+#tour-card { position: fixed; z-index: 25; left: calc(var(--gutter) + env(safe-area-inset-left)); bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
+  width: min(460px, calc(100% - var(--panel-w) - 3 * var(--gutter))); padding: 16px 18px; }
+#tour-card h3 { font-size: 22px; margin: 6px 0 8px; }
+#tour-card p { font-size: 14.5px; }
+.tour-top { display: flex; justify-content: space-between; align-items: center; font: 500 11px/1 var(--f-mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.tour-top button { font-size: 12px; padding: 4px 10px; }
+.tour-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+#tour-next { background: rgba(167, 139, 250, 0.18); border-color: var(--violet); }
+#toast { position: fixed; z-index: 40; left: 50%; top: calc(var(--gutter) + env(safe-area-inset-top)); transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 2 * var(--gutter))); padding: 9px 14px; font-size: 13px; background: var(--glass-2);
+  border: 1px solid var(--line-2); border-radius: 999px; box-shadow: 0 8px 26px rgba(0,0,0,0.5); }
+
+/* ---------------------------------------------------------------- loading */
+#loading { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; text-align: center; padding: 24px;
+  background: radial-gradient(90% 70% at 50% 45%, #0B1322 0%, #05070D 75%); transition: opacity 0.6s; }
+#loading.done { opacity: 0; pointer-events: none; }
+#loading h2 { font-size: 40px; font-variation-settings: "opsz" 120; }
+#loading p { color: var(--muted); margin-top: 10px; font-family: var(--f-mono); font-size: 13px; }
+#loading pre { max-width: min(640px, 92vw); white-space: pre-wrap; text-align: left; color: var(--rose); font: 12px/1.4 var(--f-mono);
+  background: rgba(242, 109, 133, 0.06); border: 1px solid rgba(242, 109, 133, 0.35); border-radius: 10px; padding: 10px 12px; margin: 14px auto 0; }
+.ring-spinner { width: 64px; height: 64px; margin: 18px auto 0; border-radius: 50%; border: 2px solid rgba(139, 152, 165, 0.18);
+  border-top-color: var(--teal); border-right-color: var(--violet); animation: spin 1.4s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading.failed .ring-spinner { animation: none; border-color: var(--rose); }
+
+/* ---------------------------------------------------------------- phone: bottom sheet */
+@media (max-width: 760px) {
+  :root { --panel-w: 0px; }
+  #title { font-size: 22px; }
+  #subtitle { display: none; }
+  #brand { max-width: calc(100% - 2 * var(--gutter)); }
+  #views { top: calc(10px + env(safe-area-inset-top) + 34px); right: calc(var(--gutter) + env(safe-area-inset-right)); max-width: none; gap: 5px; }
+  #views button { font-size: 12px; padding: 5px 9px; }
+  #caption { top: calc(10px + env(safe-area-inset-top) + 108px); bottom: auto; right: calc(var(--gutter) + env(safe-area-inset-right)); max-width: none;
+    padding: 8px 10px; font-size: 12.5px; }
+  #caption-text { font-size: 12.5px; }
+  #brand { top: calc(10px + env(safe-area-inset-top)); }
+  #panel { top: auto; left: calc(var(--gutter) + env(safe-area-inset-left)); right: calc(var(--gutter) + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom)); width: auto; max-height: 62vh; max-height: 62dvh; border-radius: 18px; }
+  #panel-head { padding: 8px 12px 10px; }
+  #sheet-toggle { display: block; margin: 0 auto 8px; width: 64px; height: 18px; padding: 0; border: 0; background: transparent; position: relative; }
+  #sheet-toggle::before { content: ""; position: absolute; left: 14px; right: 14px; top: 7px; height: 4px; border-radius: 2px; background: var(--line-2); }
+  #panel.collapsed #panel-body { display: none; }
+  #panel.collapsed #phases { display: none; }
+  #readouts { gap: 6px; }
+  .ro .v { font-size: 12px; }
+  #station-card { top: auto; bottom: calc(10px + env(safe-area-inset-bottom) + 190px); }
+  #tour-card { top: calc(10px + env(safe-area-inset-top) + 92px); bottom: auto; right: calc(var(--gutter) + env(safe-area-inset-right)); width: auto; padding: 12px 14px; }
+  #tour-card h3 { font-size: 18px; }
+  #tour-card p { font-size: 13.5px; }
+  #ep-maps { grid-template-columns: 1fr 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage"></div>
+
+  <header id="brand">
+    <h1 id="title">Circular Predictive Coding<span class="dot">.</span></h1>
+    <p id="subtitle">A feedforward network for 4×4 Sudoku, folded into a loop. It solves the board by minimising an energy, live, on its trained weights.</p>
+  </header>
+
+  <nav id="views" aria-label="Camera and view">
+    <button id="cam-overview" type="button">Overview</button>
+    <button id="cam-board" type="button">Board</button>
+    <button id="cam-ride" type="button">Ride the ring</button>
+    <button id="btn-unfold" type="button" aria-pressed="false">Unfold</button>
+    <button id="btn-tour" type="button">Tour</button>
+  </nav>
+
+  <div id="caption" role="status" aria-live="polite"><span id="caption-phase" class="tag">Free phase</span><span id="caption-text">Loading…</span></div>
+
+  <aside id="panel" class="glass" aria-label="Controls">
+    <div id="panel-head">
+      <button id="sheet-toggle" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Show or hide the controls"></button>
+      <div id="transport">
+        <button id="btn-play" class="tbtn" type="button" aria-label="Pause" data-state="playing">
+          <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.6" height="12" rx="1"/><rect x="9.4" y="2" width="3.6" height="12" rx="1"/></svg>
+          <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.2v11.6c0 .6.7 1 1.2.6l8.6-5.8c.4-.3.4-.9 0-1.2L5.2 1.6C4.7 1.2 4 1.6 4 2.2z"/></svg>
+        </button>
+        <button id="btn-step" class="tbtn" type="button" aria-label="One iteration">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.8v10.4c0 .6.7.9 1.1.6l7.3-5.2c.4-.3.4-.9 0-1.2L3.6 2.2c-.4-.3-1.1 0-1.1.6z"/><rect x="11.6" y="2.2" width="2.2" height="11.6" rx="0.8"/></svg>
+        </button>
+        <button id="btn-reset" class="tbtn" type="button" aria-label="Restart the free phase from z = 0">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.3 7h1.7A3.9 3.9 0 1 0 5 5.1l1.6 1.6H2.2V2.3l1.7 1.7A5.5 5.5 0 0 1 8 2.5z"/></svg>
+        </button>
+        <div id="speed-wrap">
+          <label for="speed">speed</label>
+          <input id="speed" type="range" min="0" max="12" step="1" value="4">
+          <output id="speed-label" for="speed">4 it/s</output>
+        </div>
+      </div>
+      <div id="readouts">
+        <div class="ro"><span class="k">iteration</span><span id="ro-iter" class="v">0</span></div>
+        <div class="ro"><span class="k">energy E</span><span id="ro-energy" class="v rose">–</span></div>
+        <div class="ro"><span class="k">residual</span><span id="ro-res" class="v">–</span></div>
+        <div class="ro"><span class="k">board</span><span id="ro-acc" class="v">–</span></div>
+      </div>
+      <div id="board-legend" aria-label="Digit label colours">
+        <span class="chip" id="legend-correct" style="--c: var(--green)">correct</span>
+        <span class="chip" id="legend-wrong" style="--c: var(--rose)">wrong</span>
+        <span class="chip" id="legend-clue" style="--c: var(--violet)">clue</span>
+      </div>
+      <div id="fold-row">
+        <span aria-hidden="true">ring</span>
+        <input id="fold" type="range" min="0" max="1" step="0.001" value="0" aria-label="Fold or unfold the network">
+        <span aria-hidden="true">unrolled</span>
+      </div>
+      <div id="phases" role="radiogroup" aria-label="Phase">
+        <button id="phase-free" type="button" role="radio" aria-checked="true">Free</button>
+        <button id="phase-plus" type="button" role="radio" aria-checked="false">Nudge +β</button>
+        <button id="phase-ep" type="button" role="radio" aria-checked="false">EP signal</button>
+        <button id="phase-learn" type="button">Learn</button>
+      </div>
+    </div>
+
+    <div id="panel-body">
+      <div id="tabs" role="tablist" aria-label="Panels">
+        <button id="tabbtn-run" type="button" role="tab" aria-selected="true" aria-controls="tab-run">Energy</button>
+        <button id="tabbtn-puzzle" type="button" role="tab" aria-selected="false" aria-controls="tab-puzzle">Puzzle</button>
+        <button id="tabbtn-learn" type="button" role="tab" aria-selected="false" aria-controls="tab-learn">Learn</button>
+        <button id="tabbtn-view" type="button" role="tab" aria-selected="false" aria-controls="tab-view">View</button>
+        <button id="tabbtn-about" type="button" role="tab" aria-selected="false" aria-controls="tab-about">About</button>
+      </div>
+
+      <section id="tab-run" role="tabpanel" aria-labelledby="tabbtn-run">
+        <canvas id="chart" aria-label="log10 energy and log10 relative residual against iteration"></canvas>
+        <div class="legend"><span><i style="background: var(--rose)"></i>log₁₀ E</span><span><i style="background: var(--muted)"></i>log₁₀ residual</span><span><i style="background: var(--violet)"></i>phase change</span></div>
+        <div class="h">Energy per layer</div>
+        <div id="parts">
+          <div class="part"><span>½‖u − û‖²</span><span class="bar"><span id="part-u"></span></span><span id="part-u-val" class="val">–</span></div>
+          <div class="part"><span>½‖s − ŝ‖²</span><span class="bar"><span id="part-s"></span></span><span id="part-s-val" class="val">–</span></div>
+        </div>
+        <p id="rho-line" class="note" style="margin-top: 12px"></p>
+        <p class="note">E is the sum of squared prediction errors. It is zero exactly at a fixed point of the loop, where the ring is a deep feedforward network run to convergence.</p>
+      </section>
+
+      <section id="tab-puzzle" role="tabpanel" aria-labelledby="tabbtn-puzzle" hidden>
+        <p id="puzzle-pool-note" class="note">10 curated boards for the current model + mode. ✓ solved · ✗ wrong · … stalled.</p>
+        <div id="showcase"></div>
+        <p id="slow-momentum-note" class="note">Slow boards are slow because momentum overshoots: switch momentum off to compare.</p>
+        <div class="h">Clues</div>
+        <div id="clue-grid" aria-label="Clue editor: activate a cell to cycle blank, 1, 2, 3, 4"></div>
+        <div class="row btns"><button id="puzzle-clear" type="button">clear clues</button><button id="puzzle-restore" type="button">restore puzzle</button></div>
+        <p id="puzzle-status" class="note"></p>
+      </section>
+
+      <section id="tab-learn" role="tabpanel" aria-labelledby="tabbtn-learn" hidden>
+        <div class="h">Model</div>
+        <div class="row"><select id="model-select" aria-label="Model"></select></div>
+        <p id="model-blurb" class="note"></p>
+        <label class="toggle"><input type="checkbox" id="tog-mom"><span class="sw" style="background: var(--amber)"></span>Momentum (heavy-ball GD, off = plain gradient descent on E; the nudge phase always matches this toggle)</label>
+        <p class="note">Equilibrium propagation: relax freely to z⁰, then relax again with a weak pull β·C toward the label to z^β. The weight update is read off the contrast (one-sided — this app shows standard nudging only; the checkpoint was trained with centred ±β EP, see the About tab). For a dense layer it is a difference of outer products, postsynaptic error × presynaptic activity:</p>
+        <p id="learn-formula" class="mono" style="font-size: 12px; color: var(--amber)">ΔW ∝ −[∂E/∂W(z^β) − ∂E/∂W(z⁰)] / β,<br>∂E/∂W1 = −sᵀ[(u − û) ⊙ (1 − û²)]</p>
+        <div id="ep-maps">
+          <figure><canvas id="hm-W1" width="256" height="256" aria-label="EP estimate for W1"></canvas><figcaption id="hm-W1-cap">ΔW1 (s → u), 256 × 256</figcaption></figure>
+          <figure><canvas id="hm-W2" width="256" height="256" aria-label="EP estimate for W2"></canvas><figcaption id="hm-W2-cap">ΔW2 (u → s), 256 × 256</figcaption></figure>
+        </div>
+        <p id="ep-status" class="note" style="margin-top: 8px">Run the EP cycle (or the phases above) to compute the signal. Amber = positive, steel = negative.</p>
+
+        <div class="h">Nudging &amp; learning</div>
+        <div id="param-beta-row" class="param"><label for="param-beta">β</label><input id="param-beta" type="range" min="0.005" max="0.3" step="0.005" value="0.05"><output id="param-beta-val" for="param-beta"></output></div>
+        <div id="param-lr-row" class="param"><label for="param-lr">lr</label><input id="param-lr" type="range" min="0.001" max="0.5" step="0.001" value="0.05"><output id="param-lr-val" for="param-lr"></output></div>
+        <div class="row btns"><button id="btn-ep-cycle" type="button">Run a full EP cycle</button></div>
+        <p class="note" style="color: var(--muted)">free phase → nudge +β → EP signal → weight update (lr) → free phase again, animated at the playback speed.</p>
+        <div class="row btns"><button id="btn-learn-x5" type="button">×5 (fast-forward)</button></div>
+        <div class="row btns"><button id="btn-learn-reset" type="button">Reset weights</button></div>
+        <p id="learn-status" class="note"></p>
+        <p id="learn-updates" class="mono" style="font-size: 12px; color: var(--teal)">updates applied: 0</p>
+        <table id="learn-history" class="mono" style="font-size: 11px; width: 100%; border-collapse: collapse;"></table>
+        <p class="note" style="color: var(--muted)">These updates fit this board; they may make others worse.</p>
+      </section>
+
+      <section id="tab-view" role="tabpanel" aria-labelledby="tabbtn-view" hidden>
+        <label class="toggle"><input type="checkbox" id="tog-pred" checked><span class="sw" style="background: var(--teal)"></span>Show predictions (ghost rings)</label>
+        <label class="toggle"><input type="checkbox" id="tog-err" checked><span class="sw" style="background: var(--rose)"></span>Show errors (glowing gaps)</label>
+        <label class="toggle"><input type="checkbox" id="tog-synapses" checked><span class="sw" style="background: var(--amber)"></span>Synapses (strongest weights)</label>
+        <label class="toggle"><input type="checkbox" id="tog-particles" checked><span class="sw" style="background: var(--teal)"></span>Signal particles</label>
+        <label class="toggle"><input type="checkbox" id="tog-beam" checked><span class="sw" style="background: var(--violet)"></span>Input beam x_inj</label>
+        <label class="toggle"><input type="checkbox" id="tog-labels" checked><span class="sw" style="background: var(--ink)"></span>Labels</label>
+        <label class="toggle"><input type="checkbox" id="tog-bloom" checked><span class="sw" style="background: var(--muted)"></span>Bloom</label>
+        <label class="toggle"><input type="checkbox" id="tog-rotate" checked><span class="sw" style="background: var(--muted)"></span>Slow auto-orbit when idle</label>
+        <p id="quality-status" class="note" style="margin-top: 8px"></p>
+        <div class="h">Colour key</div>
+        <div class="swatches">
+          <span style="--c: var(--ink)">unit value +</span><span style="--c: var(--steel)">unit value −</span>
+          <span style="--c: var(--teal)">prediction / forward signal</span><span style="--c: var(--rose)">prediction error / energy</span>
+          <span style="--c: var(--amber)">weights / learning</span><span style="--c: var(--violet)">clues, input, label, nudge</span>
+          <span style="--c: var(--green)">equilibrium / solved</span><span style="--c: var(--muted)">neutral</span>
+        </div>
+        <div class="h">Keys</div>
+        <p class="note"><kbd>space</kbd> play/pause · <kbd>→</kbd> step · <kbd>r</kbd> reset · <kbd>n</kbd> random puzzle · <kbd>f</kbd> fold/unfold · <kbd>t</kbd> tour · <kbd>o</kbd> overview · <kbd>b</kbd> board · <kbd>esc</kbd> close</p>
+      </section>
+
+      <section id="tab-about" role="tabpanel" aria-labelledby="tabbtn-about" hidden>
+        <div class="h">What you are looking at</div>
+        <p class="note">Two layers of 256 tanh units, u and s, joined into a loop: û = tanh(s·W1 + b1) and ŝ = tanh(u·W2 + b2 + x_inj), where x_inj = x·Win + bin embeds the clues (16 cells × 5 one-hot = 80 inputs). The energy E = ½‖u − û‖² + ½‖s − ŝ‖² is zero exactly at a fixed point. Unrolled, the loop is a deep feedforward network s₀ = 0 → u₁ → s₁ → u₂ → … that repeats W1 and W2 and re-injects x_inj into every s layer. The board is read from s by V (256 → 16 cells × 4 digits).</p>
+        <div class="h">How these weights were trained</div>
+        <p class="note">These weights were trained by equilibrium propagation (centred, ±β) on gradient-descent-on-E free-phase states, with heavy-ball momentum and a spectral-norm cap on W1/W2 — see the "model" and "summary" rows below for the exact numbers. Inference here is the same gradient descent on E used in training, run live in your browser, started from zero so you can watch it converge (training itself started from one feedforward sweep; both reach the identical equilibrium — see "free-phase init" below). The nudge and the EP signal you can watch in the Learn tab are computed live on these weights too — nothing here is pre-baked.</p>
+        <dl id="metrics" class="kv"></dl>
+        <div class="h">Numerics</div>
+        <p><span id="selftest-badge" class="badge wait">self-test pending…</span></p>
+        <table id="selftest-rows"></table>
+        <div class="h">What is illustrative</div>
+        <p class="note">All values, predictions, errors, energies, probabilities and EP gradients are computed from the model state. Illustrative choices: the placement of units inside a layer (s units grouped by the board cell their readout weights favour, u units by the s group they feed most), drawing only the strongest few hundred weights, particle density as a visual proxy for |w × activity|, and the geometry of the fold animation.</p>
+      </section>
+    </div>
+  </aside>
+
+  <div id="tooltip" role="tooltip" hidden></div>
+  <div id="station-card" class="glass" role="dialog" aria-labelledby="station-card-title" hidden>
+    <button id="station-card-close" type="button" aria-label="Close">×</button>
+    <h3 id="station-card-title"></h3>
+    <div id="station-card-body"></div>
+  </div>
+  <div id="tour-card" class="glass" role="dialog" aria-labelledby="tour-title" hidden>
+    <div class="tour-top"><span id="tour-step"></span><button id="tour-exit" type="button">exit tour</button></div>
+    <h3 id="tour-title"></h3>
+    <p id="tour-text"></p>
+    <div class="tour-btns"><button id="tour-prev" type="button">back</button><button id="tour-next" type="button">next</button></div>
+  </div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+
+  <div id="loading">
+    <div>
+      <h2>Circular Predictive Coding</h2>
+      <div class="ring-spinner" aria-hidden="true"></div>
+      <p id="loading-msg">Loading…</p>
+      <pre id="loading-err" hidden></pre>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+<script>
+(function () {
+  function fail(msg) {
+    var l = document.getElementById('loading');
+    if (!l) return;
+    var m = document.getElementById('loading-msg');
+    var e = document.getElementById('loading-err');
+    if (m) m.textContent = 'The demo could not start.';
+    if (e) { e.hidden = false; e.textContent = String(msg || 'unknown error'); }
+    l.classList.remove('done');
+    l.classList.add('failed');
+  }
+  window.__shidokuFail = fail;
+  window.addEventListener('error', function (ev) { if (!window.__shidokuBooted) fail((ev && ev.message) || 'script error'); });
+  window.addEventListener('unhandledrejection', function (ev) {
+    if (!window.__shidokuBooted) fail(ev && ev.reason ? (ev.reason.message || ev.reason) : 'unhandled rejection');
+  });
+  setTimeout(function () {
+    if (!window.__shidokuBooted && !window.__shidokuStarted) fail('Timed out loading the modules (./vendor/three or ./app.js).');
+  }, 25000);
+})();
+</script>
+<script type="module" src="./app.js"></script>
+
+</body></html>

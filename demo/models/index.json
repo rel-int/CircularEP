@@ -1,0 +1,15 @@
+{
+ "version": 1,
+ "puzzles_file": "puzzles.json",
+ "models": [
+  {
+   "id": "best",
+   "label": "Best (EP-trained)",
+   "file": "models/best.json",
+   "blurb": "Trained with equilibrium propagation using exactly this GD inference; the best checkpoint by validation accuracy.",
+   "test_board": 0.877,
+   "test_solved": 0.877,
+   "test_conv_frac": 1.0
+  }
+ ]
+}
