@@ -20,7 +20,7 @@ Take a feedforward predictive coding network and identify its first and last hid
 
 1. **Free phase.** Inference relaxes the value nodes to the zero-energy equilibrium $x^*$.
 2. **Nudged phase.** The output is weakly pulled towards the label with strength $\beta$, and the network settles at a nearby equilibrium $x^\beta$. The computer vision model runs one nudged phase per training step, with a random sign of $\beta$; the Sudoku models run a $+\beta$ and a $-\beta$ phase and average the two updates.
-3. **Local weight update.** $\Delta\theta = -\frac{\eta}{\beta}\,\partial E/\partial\theta(\theta, x^\beta)$, with $\beta$ signed. Prediction errors vanish at $x^*$, so the free-phase term drops out, and each weight is updated from the prediction error of the node it projects to and the activity of the node it reads from.
+3. **Local weight update.** $\Delta\theta = -\frac{\eta}{\beta}\frac{\partial E}{\partial\theta}(\theta, x^{\beta})$, with $\beta$ signed. Prediction errors vanish at $x^*$, so the free-phase term drops out, and each weight is updated from the prediction error of the node it projects to and the activity of the node it reads from.
 
 EP approximates the implicit gradient of the equivalent deep equilibrium model (Theorem 2).
 
