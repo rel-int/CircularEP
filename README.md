@@ -2,11 +2,12 @@
 
 Closing a shallow feedforward predictive coding network into a loop turns relaxation time into effective depth; the model is trained with equilibrium propagation (EP), and every weight update is local.
 
+[![arXiv](https://img.shields.io/badge/arXiv-2611.27610-B31B1B)](https://arxiv.org/abs/2611.27610)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![JAX](https://img.shields.io/badge/built%20with-JAX-A142F4)](https://github.com/jax-ml/jax)
 [![Live demo](https://img.shields.io/badge/live%20demo-GitHub%20Pages-2EA44F)](https://rel-int.github.io/CircularEP/)
 
-Code for the paper *Circular Predictive Coding Unlocks Effective Depth* by Tommaso Salvatori and Matteo Forasassi (Relational Intelligence, Inc. and TU Wien).
+Code for the paper [*Circular Predictive Coding Unlocks Effective Depth*](https://arxiv.org/abs/2611.27610) by Tommaso Salvatori and Matteo Forasassi (Relational Intelligence, Inc. and TU Wien).
 
 ![Animation of a feedforward predictive coding network whose first and last hidden layers are identified, so that its layers close into a loop.](assets/circular_model.gif)
 
@@ -142,9 +143,13 @@ python -m recursive.evaluate --ckpt runs/smoke/recursive/best.pkl --stages 4 --n
 
 ```bibtex
 @misc{salvatori2026circular,
-  title  = {Circular Predictive Coding Unlocks Effective Depth},
-  author = {Salvatori, Tommaso and Forasassi, Matteo},
-  year   = {2026}
+  title         = {Circular Predictive Coding Unlocks Effective Depth},
+  author        = {Salvatori, Tommaso and Forasassi, Matteo},
+  year          = {2026},
+  eprint        = {2611.27610},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2611.27610}
 }
 ```
 

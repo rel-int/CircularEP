@@ -17,3 +17,8 @@ preferred-citation:
     - given-names: Matteo
       family-names: Forasassi
   year: 2026
+  journal: "arXiv preprint arXiv:2611.27610"
+  url: "https://arxiv.org/abs/2611.27610"
+  identifiers:
+    - type: doi
+      value: 10.48550/arXiv.2611.27610
